@@ -45,14 +45,29 @@
             font-size: 1.5rem;
             font-weight: bold;
             background: linear-gradient(45deg, #00ffff, #ff00ff);
-            background-clip: text;
             -webkit-background-clip: text;
+            background-clip: text;
             -webkit-text-fill-color: transparent;
         }
 
         .nav-links {
             display: flex;
             gap: 2rem;
+        }
+
+        @media (max-width: 768px) {
+            .nav-links {
+                display: none;
+            }
+            
+            .hero-title {
+                font-size: 2.5rem !important;
+            }
+            
+            .hero-description {
+                font-size: 1rem !important;
+                padding: 0 1rem;
+            }
         }
 
         .nav-link {
@@ -154,9 +169,37 @@
             border: 1px solid rgba(255, 255, 255, 0.2);
             opacity: 0;
         }
+
+        #motion-permission {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.9);
+            padding: 2rem;
+            border-radius: 1rem;
+            text-align: center;
+            z-index: 1000;
+            display: none;
+        }
+
+        .permission-button {
+            margin-top: 1rem;
+            padding: 0.5rem 1rem;
+            background: linear-gradient(45deg, #00ffff, #ff00ff);
+            border: none;
+            border-radius: 0.5rem;
+            color: white;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
+    <div id="motion-permission">
+        <p>Enable motion controls for an immersive experience?</p>
+        <button class="permission-button">Enable</button>
+    </div>
+
     <canvas id="background-canvas"></canvas>
     
     <nav class="navbar">
@@ -179,7 +222,7 @@
     </section>
 
     <script>
-        // Three.js Background
+        // Three.js Setup
         const canvas = document.getElementById('background-canvas');
         const scene = new THREE.Scene();
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -220,6 +263,71 @@
         camera.position.z = 30;
         camera.position.y = 5;
 
+        // Motion controls
+        let motionEnabled = false;
+        let initialBeta = null;
+        let initialGamma = null;
+
+        // Check if device supports motion
+        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        
+        if (isMobile) {
+            const permissionDialog = document.getElementById('motion-permission');
+            permissionDialog.style.display = 'block';
+
+            permissionDialog.querySelector('button').addEventListener('click', async () => {
+                try {
+                    // Request permission for motion sensors
+                    if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+                        const permission = await DeviceOrientationEvent.requestPermission();
+                        if (permission === 'granted') {
+                            motionEnabled = true;
+                            setupMotionControls();
+                        }
+                    } else {
+                        motionEnabled = true;
+                        setupMotionControls();
+                    }
+                    permissionDialog.style.display = 'none';
+                } catch (error) {
+                    console.error('Motion permission denied:', error);
+                }
+            });
+        }
+
+        function setupMotionControls() {
+            window.addEventListener('deviceorientation', handleDeviceMotion);
+        }
+
+        function handleDeviceMotion(event) {
+            if (!initialBeta) initialBeta = event.beta;
+            if (!initialGamma) initialGamma = event.gamma;
+
+            const deltaX = (event.gamma - initialGamma) * 0.01;
+            const deltaY = (event.beta - initialBeta) * 0.01;
+
+            gsap.to(grid.rotation, {
+                x: -Math.PI / 2 + deltaY,
+                y: deltaX,
+                duration: 0.5
+            });
+
+            gsap.to(particlesMesh.rotation, {
+                x: deltaY,
+                y: deltaX,
+                duration: 0.5
+            });
+
+            // Add subtle movement to floating cards
+            document.querySelectorAll('.card').forEach(card => {
+                gsap.to(card, {
+                    x: deltaX * 20,
+                    y: deltaY * 20,
+                    duration: 0.5
+                });
+            });
+        }
+
         // Animation
         function animate() {
             requestAnimationFrame(animate);
@@ -230,7 +338,7 @@
         animate();
 
         // Floating Cards
-       /* const cardsContainer = document.querySelector('.floating-cards');
+        /*const cardsContainer = document.querySelector('.floating-cards');
         const cardCount = 5;
 
         for(let i = 0; i < cardCount; i++) {
@@ -287,23 +395,25 @@
             delay: 0.9
         });
 
-        // Mouse movement effect
-        document.addEventListener('mousemove', (e) => {
-            const mouseX = (e.clientX / window.innerWidth) * 2 - 1;
-            const mouseY = (e.clientY / window.innerHeight) * 2 - 1;
+        // Mouse movement effect for desktop
+        if (!isMobile) {
+            document.addEventListener('mousemove', (e) => {
+                const mouseX = (e.clientX / window.innerWidth) * 2 - 1;
+                const mouseY = (e.clientY / window.innerHeight) * 2 - 1;
 
-            gsap.to(grid.rotation, {
-                x: -Math.PI / 2 + mouseY * 0.1,
-                y: mouseX * 0.1,
-                duration: 1
-            });
+                gsap.to(grid.rotation, {
+                    x: -Math.PI / 2 + mouseY * 0.1,
+                    y: mouseX * 0.1,
+                    duration: 1
+                });
 
-            gsap.to(particlesMesh.rotation, {
-                x: mouseY * 0.1,
-                y: mouseX * 0.1,
-                duration: 1
+                gsap.to(particlesMesh.rotation, {
+                    x: mouseY * 0.1,
+                    y: mouseX * 0.1,
+                    duration: 1
+                });
             });
-        });
+        }
 
         // Responsive design
         window.addEventListener('resize', () => {
